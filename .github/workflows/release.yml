@@ -42,6 +42,10 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: git-ai-windows-x64
             use_docker: false
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            artifact_name: git-ai-windows-gnu-x64
+            use_docker: false
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
             artifact_name: git-ai-windows-arm64
@@ -88,6 +92,13 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+
+      - name: Install MinGW/GCC toolchain (Windows GNU)
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          gcc --version
 
       - name: Cache dependencies (non-Docker)
         if: matrix.use_docker == false
@@ -396,7 +407,8 @@ jobs:
             ### Downloads
             - **Linux (x64)**: `git-ai-linux-x64`
             - **Linux (ARM64)**: `git-ai-linux-arm64`
-            - **Windows (x64)**: `git-ai-windows-x64.exe`
+            - **Windows (x64, MSVC)**: `git-ai-windows-x64.exe`
+            - **Windows (x64, GNU)**: `git-ai-windows-gnu-x64.exe`
             - **Windows (ARM64)**: `git-ai-windows-arm64.exe`
             - **macOS (Intel)**: `git-ai-macos-x64`
             - **macOS (Apple Silicon)**: `git-ai-macos-arm64`
