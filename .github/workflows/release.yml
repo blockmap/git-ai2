@@ -280,11 +280,11 @@ jobs:
           toolchain: stable
           targets: x86_64-pc-windows-gnu
 
-      - name: Install MinGW/GCC toolchain
+      - name: Install MSYS2 (for Win7-compatible MinGW)
         run: |
-          choco install mingw -y
-          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-          gcc --version
+          choco install msys2 -y --no-progress
+          refreshenv
+          C:\tools\msys64\usr\bin\bash -lc "pacman --noconfirm -S mingw-w64-x86_64-gcc"
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -296,18 +296,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-x86_64-pc-windows-gnu-win7-
 
-      - name: Build release binary (Windows GNU with Win7 support)
+      - name: Build with MSYS2 MinGW
+        shell: bash
         run: |
+          export PATH="C:/tools/msys64/mingw64/bin:C:/tools/msys64/usr/bin:$PATH"
+          gcc --version
           cargo build --release --target x86_64-pc-windows-gnu
         env:
           CARGO_INCREMENTAL: 0
           SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           OSS_BUILD: "1"
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-static -C link-arg=-static-libgcc -C link-arg=-lmsvcrt -C link-arg=-lbcrypt"
-          CFLAGS: "-D_WIN32_WINNT=0x0601 -static -static-libgcc"
-          CXXFLAGS: "-D_WIN32_WINNT=0x0601 -static -static-libgcc"
-          CC: "gcc"
+          RUSTFLAGS: "-C target-feature=+crt-static -C linker=gcc -C link-arg=-Wl,--dynamicbase"
+          CFLAGS: "-D_WIN32_WINNT=0x0601"
+          CXXFLAGS: "-D_WIN32_WINNT=0x0601"
+          CC: gcc
+          CXX: g++
 
       - name: Verify binary architecture (Windows)
         shell: bash
