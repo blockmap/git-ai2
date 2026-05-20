@@ -304,9 +304,10 @@ jobs:
           SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           OSS_BUILD: "1"
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-lbcrypt"
-          CFLAGS: "-D_WIN32_WINNT=0x0601"
-          CXXFLAGS: "-D_WIN32_WINNT=0x0601"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-static -C link-arg=-static-libgcc -C link-arg=-lmsvcrt -C link-arg=-lbcrypt"
+          CFLAGS: "-D_WIN32_WINNT=0x0601 -static -static-libgcc"
+          CXXFLAGS: "-D_WIN32_WINNT=0x0601 -static -static-libgcc"
+          CC: "gcc"
 
       - name: Verify binary architecture (Windows)
         shell: bash
