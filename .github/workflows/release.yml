@@ -46,12 +46,6 @@ jobs:
             target: x86_64-pc-windows-gnu
             artifact_name: git-ai-windows-gnu-x64
             use_docker: false
-            win7_support: false
-          - os: windows-latest
-            target: x86_64-pc-windows-gnu
-            artifact_name: git-ai-windows-gnu-x64-win7
-            use_docker: false
-            win7_support: true
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
             artifact_name: git-ai-windows-arm64
@@ -117,8 +111,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.target }}-
 
-      - name: Build release binary (non-Docker, non-Windows-ARM64, non-Win7)
-        if: matrix.use_docker == false && matrix.os != 'windows-11-arm' && (matrix.win7_support != true)
+      - name: Build release binary (non-Docker, non-Windows-ARM64)
+        if: matrix.use_docker == false && matrix.os != 'windows-11-arm'
         run: |
           cargo build --release --target ${{ matrix.target }}
         env:
@@ -126,19 +120,6 @@ jobs:
           SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           OSS_BUILD: "1"
-
-      - name: Build release binary (Windows GNU with Win7 support)
-        if: matrix.win7_support == true
-        run: |
-          cargo build --release --target ${{ matrix.target }}
-        env:
-          CARGO_INCREMENTAL: 0
-          SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          OSS_BUILD: "1"
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-lbcrypt"
-          CFLAGS: "-D_WIN32_WINNT=0x0601"
-          CXXFLAGS: "-D_WIN32_WINNT=0x0601"
 
       - name: Build release binary (Windows ARM64 with LLVM strip)
         if: matrix.os == 'windows-11-arm'
@@ -276,9 +257,80 @@ jobs:
           path: release/git-ai-macos-x64
           retention-days: 30
 
+  build-windows-gnu-win7:
+    name: Build for Windows x64 GNU (Win7+)
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Get version from Cargo.toml
+        id: get-version
+        shell: bash
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | cut -d'"' -f2)
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # master
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install MinGW/GCC toolchain
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          gcc --version
+
+      - name: Cache dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-x86_64-pc-windows-gnu-win7-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-x86_64-pc-windows-gnu-win7-
+
+      - name: Build release binary (Windows GNU with Win7 support)
+        run: |
+          cargo build --release --target x86_64-pc-windows-gnu
+        env:
+          CARGO_INCREMENTAL: 0
+          SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          OSS_BUILD: "1"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-lbcrypt"
+          CFLAGS: "-D_WIN32_WINNT=0x0601"
+          CXXFLAGS: "-D_WIN32_WINNT=0x0601"
+
+      - name: Verify binary architecture (Windows)
+        shell: bash
+        run: |
+          file target/x86_64-pc-windows-gnu/release/git-ai.exe
+
+      - name: Create release directory
+        run: |
+          mkdir -p release
+
+      - name: Copy binary to release directory
+        run: |
+          cp target/x86_64-pc-windows-gnu/release/git-ai.exe release/git-ai-windows-gnu-x64-win7.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: git-ai-windows-gnu-x64-win7
+          path: release/git-ai-windows-gnu-x64-win7.exe
+          retention-days: 30
+
   create-release:
     name: Create Release
-    needs: [build, build-macos-intel]
+    needs: [build, build-macos-intel, build-windows-gnu-win7]
     runs-on: ubuntu-latest
     if: success() && inputs.dry_run != true
 
