@@ -46,6 +46,12 @@ jobs:
             target: x86_64-pc-windows-gnu
             artifact_name: git-ai-windows-gnu-x64
             use_docker: false
+            win7_support: false
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            artifact_name: git-ai-windows-gnu-x64-win7
+            use_docker: false
+            win7_support: true
           - os: windows-11-arm
             target: aarch64-pc-windows-msvc
             artifact_name: git-ai-windows-arm64
@@ -111,8 +117,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.target }}-
 
-      - name: Build release binary (non-Docker, non-Windows-ARM64)
-        if: matrix.use_docker == false && matrix.os != 'windows-11-arm'
+      - name: Build release binary (non-Docker, non-Windows-ARM64, non-Win7)
+        if: matrix.use_docker == false && matrix.os != 'windows-11-arm' && (matrix.win7_support != true)
         run: |
           cargo build --release --target ${{ matrix.target }}
         env:
@@ -120,6 +126,19 @@ jobs:
           SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           OSS_BUILD: "1"
+
+      - name: Build release binary (Windows GNU with Win7 support)
+        if: matrix.win7_support == true
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_INCREMENTAL: 0
+          SENTRY_OSS: ${{ secrets.SENTRY_OSS }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          OSS_BUILD: "1"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-lbcrypt"
+          CFLAGS: "-D_WIN32_WINNT=0x0601"
+          CXXFLAGS: "-D_WIN32_WINNT=0x0601"
 
       - name: Build release binary (Windows ARM64 with LLVM strip)
         if: matrix.os == 'windows-11-arm'
@@ -409,6 +428,7 @@ jobs:
             - **Linux (ARM64)**: `git-ai-linux-arm64`
             - **Windows (x64, MSVC)**: `git-ai-windows-x64.exe`
             - **Windows (x64, GNU)**: `git-ai-windows-gnu-x64.exe`
+            - **Windows (x64, GNU, Win7+)**: `git-ai-windows-gnu-x64-win7.exe`
             - **Windows (ARM64)**: `git-ai-windows-arm64.exe`
             - **macOS (Intel)**: `git-ai-macos-x64`
             - **macOS (Apple Silicon)**: `git-ai-macos-arm64`
